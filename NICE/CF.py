@@ -25,7 +25,7 @@ class NICE:
             weights = None,
             percentiles_discretization = (10,20,30,40,50,60,70,80,90)):#todo specify type for each feature
         self.distance_metric = distance_metric
-        self.X_train = X_train.astype(np.float64)
+        self.X_train = X_train
         self.y_train = y_train.astype(np.float64)#todo clean up what's supposed to be internal variable
         self.cat_feat = cat_feat
         self.predict_fn = predict_fn
@@ -41,6 +41,7 @@ class NICE:
 
         if self.con_feat == 'auto':
             self.con_feat = [feat for feat in range(self.X_train.shape[1]) if feat not in self.cat_feat]
+        self.X_train[:,self.con_feat] = X_train[:,self.con_feat].astype(np.float64)
 
         if self.distance_metric in ['MVDM','ABDM']:
             self.disc = Discretizer(self.X_train, self.con_feat, self.feature_names, self.percentiles_discretization)
@@ -69,7 +70,8 @@ class NICE:
 
 
     def explain(self,X,target_class ='other'):#todo target class 'other'
-        self.X = X.astype(np.float64)
+        self.X = X
+        self.X[:, self.con_feat] = X[:, self.con_feat].astype(np.float64)
         self.X_class = np.argmax(self.predict_fn(self.X), axis=1)[0]
         self.target_class = target_class
         if target_class =='other':
@@ -119,7 +121,7 @@ class NICE:
         stop = False
         if self.start == 'NN':
             while stop == False:
-                diff = np.where(abs(X - NN) > self.eps)[1]
+                diff = np.where(X!=NN)[1] #todo check if this works:np.where(abs(X - NN) > self.eps)[1]
                 X_prune = np.tile(NN, (len(diff), 1))
                 for r, c in enumerate(diff):
                     X_prune[r, c] = X[0, c]
