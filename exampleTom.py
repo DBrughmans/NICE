@@ -39,10 +39,8 @@ X_test_raw = df_test[all_features].values
 cat_feat = [6, 7, 8, 9, 10, 11, 12, 13]
 num_feat = [0, 1, 2, 3, 4, 5]
 
-
-
-Pipe = Pipeline(
-    [('PP',ColumnTransformer([
+Pipe = Pipeline([
+    ('PP',ColumnTransformer([
         ('con',StandardScaler(),num_feat),
         ('cat',OneHotEncoder(handle_unknown = 'ignore'),cat_feat)
     ])),
@@ -65,7 +63,7 @@ predict_fn = lambda x: clf.predict_proba(x)
 
 NICE_adult = NICE(optimization='sparsity')
 NICE_adult.fit(X_train_raw, y_train.values, predict_fn, feature_names=all_features, cat_feat=cat_feat,
-               con_feat=num_feat)
+               con_feat=num_feat,distance_metric= 'HEOM',con_normalization='std')
 
 CF = []
 for idx in range(X_test_raw.shape[0]):#explain all instances from test set
@@ -73,7 +71,7 @@ for idx in range(X_test_raw.shape[0]):#explain all instances from test set
     print('{} of {} explained'.format(idx + 1, X_test_raw.shape[0]), end='\r')
 
 CF = np.concatenate(CF)
-print(np.mean(clf.predict(X_test_raw)!=clf.predict(CF))) #1.0 = all valid CF
-print(np.mean(np.sum(X_test_raw!=CF,axis=1)))#average sparsity = 2.3633
-print(pd.Series(np.sum(X_test_raw!=CF,axis=0),index= all_features))#frequency of each feature in exp
+print(np.mean(clf.predict(X_test_raw[0:100,:])!=clf.predict(CF))) #1.0 = all valid CF
+print(np.mean(np.sum(X_test_raw[0:100,:]!=CF,axis=1)))#average sparsity = 2.3633
+print(pd.Series(np.sum(X_test_raw[0:100,:]!=CF,axis=0),index= all_features))#frequency of each feature in exp
 
