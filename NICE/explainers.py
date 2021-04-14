@@ -5,7 +5,15 @@ from NICE.utils.preprocessing import OHE_minmax
 from NICE.utils.AE import AE_model
 from math import ceil
 class NICE:
-    def __init__(self,justified_cf:bool = True,optimization:str = 'sparsity'):
+    def __init__(self,optimization:str = 'sparsity',justified_cf:bool = True):
+        """
+        Initialize Nearest Instance Counterfactul Explanations
+        :param optimization: {"none", "sparsity", "proximity", "plausibility"}, default = "sparsity"
+        The optimization method.
+        :param justified_cf: bool, default = True
+        Whether the nearest neighbours are only searched whithin the correctly classified instances from X_train.
+        If True, the labels are required (y_train)
+        """
         if optimization not in ['none','sparsity','proximity','plausibility']:
             msg = 'Invalid argument for optimization: "{}"'
             raise ValueError(msg.format(optimization))
@@ -20,21 +28,37 @@ class NICE:
             num_feat ='auto',
             y_train=None,
             distance_metric='HEOM',
-            con_normalization='minmax',
-            weights = None):
+            num_normalization='minmax'):
+        """
+
+        :param predict_fn:
+        Function returning class probabilities. predict_fn(X) should return a np.array with class probablities.
+        :param X_train: np.array
+        The training input samples.
+        :param cat_feat: list
+        List with column numbers of all categorical features
+        :param num_feat: list
+        List with column numbers of all numerical features
+        :param y_train: np.array
+        The training target values. Only required if justified_CF = True
+        :param distance_metric: {"HEOM"}, default= "HEOM"
+        Distance metric to select nearest neighbour and measure proximity.
+        Currently only the Heterogeneous Overlap Method (HEOM) is supported
+        :param num_normalization:{"minmax","std"}, default= "std"
+        Normalization method for numerical features under HEOM distance metric. "minmax" normalizes values with the
+        feature range, "std" normalizes with the standard deviation.
+        Normalization method for numerical features
+        """
 
         self.distance_metric = distance_metric
         self.X_train = X_train
         self.cat_feat = cat_feat
         self.predict_fn = predict_fn
         self.num_feat = num_feat
-        self.weights = weights
-        self.con_normalization = con_normalization
+        self.num_normalization = num_normalization
         #todo raise error when wrong options are selected
         if self.optimization == 'plausibility':
             self._train_AE(self.X_train)
-        if self.weights == None:
-            self.weights = np.ones(self.X_train.shape[1])
 
         if self.num_feat == 'auto':
             self.num_feat = [feat for feat in range(self.X_train.shape[1]) if feat not in self.cat_feat]
@@ -43,13 +67,13 @@ class NICE:
 
 
         if self.distance_metric == 'HEOM':
-            if self.con_normalization == 'minmax':
+            if self.num_normalization == 'minmax':
                 self.con_scale = self.X_train[:, self.num_feat].max(axis=0) - self.X_train[:, self.num_feat].min(axis=0)
-            elif self.con_normalization == 'std':
+            elif self.num_normalization == 'std':
                 self.con_scale = self.X_train[:, self.num_feat].std(axis=0, dtype=np.float64)
             else:
                 msg = 'Invalid argument for con_normalization: "{}"'
-                raise ValueError(msg.format(self.con_normalization))
+                raise ValueError(msg.format(self.num_normalization))
             self.con_scale[self.con_scale < self.eps]=self.eps
         else:
             msg ='Invalid argument for distance_metric: "{}"'
@@ -65,6 +89,15 @@ class NICE:
 
 
     def explain(self,X,target_class ='other'):#todo target class 'other'
+        """
+
+        :param X: np.array
+        Instance to explain.
+        :param target_class: {"other"},default= "other"
+        Class of the Counterfactual instance.
+        Currently multi-class is not supported. Therefore this parameter should always be "other"
+        :return: Counterfactual instance.
+        """
         self.X = X
         self.X[:, self.num_feat] = X[:, self.num_feat].astype(np.float64)
         self.X_class = np.argmax(self.predict_fn(self.X), axis=1)[0]

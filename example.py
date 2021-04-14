@@ -39,5 +39,5 @@ NICE_adult.fit(X_train = X_train,
                y_train = y_train,
                cat_feat=cat_feat,
                num_feat=num_feat)
-CF = NICE_adult.explain(X_test[0:1,:])
 
+CF = NICE_adult.explain(X_test[0:1,:])
