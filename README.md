@@ -32,6 +32,6 @@ NICE_explainer.explain(x)
 ```
 
 ### Examples
- [Adult Income](https://github.com/DBrughmans/NICE/)
+ [NICE on Adult](https://github.com/DBrughmans/NICE/blob/master/examples/NICE_adult.ipynb)
  
 ### References
