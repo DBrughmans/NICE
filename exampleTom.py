@@ -4,10 +4,11 @@ import os
 import matplotlib.pyplot as plt
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix,roc_auc_score
 
 #os.chdir()
 feature_names = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 'marital-status', 'occupation',
@@ -41,37 +42,52 @@ num_feat = [0, 1, 2, 3, 4, 5]
 
 Pipe = Pipeline([
     ('PP',ColumnTransformer([
-        ('con',StandardScaler(),num_feat),
-        ('cat',OneHotEncoder(handle_unknown = 'ignore'),cat_feat)
+        ('con',Pipeline([('imp',SimpleImputer(strategy='mean')),('scl',StandardScaler())]),num_feat),
+        ('cat',Pipeline([('imp',SimpleImputer(strategy='most_frequent')),('ohe',OneHotEncoder(handle_unknown = 'ignore'))]),cat_feat)
     ])),
      ('RF',RandomForestClassifier())
 ])
 
-parameters = {'RF__n_estimators': (10,50,100)}
-gs_clf = GridSearchCV(Pipe, parameters, n_jobs=-1, cv=5, scoring='accuracy',verbose= 2)
+parameters = {'RF__n_estimators': (10,20)}
+gs_clf = GridSearchCV(Pipe, parameters, n_jobs=-1, cv=2, scoring='accuracy',verbose= 2)
 gs_clf = gs_clf.fit(X_train_raw, y_train)
-clf = gs_clf.best_estimator_
+best_params = gs_clf.best_params_
+clf = Pipe.set_params(**best_params)
+clf.fit(X_train_raw,y_train)
 
 y_test_pred = clf.predict(X_test_raw)
+y_train_pred = clf.predict(X_train_raw)
 print(accuracy_score(y_test, y_test_pred))  # on test set
 print(confusion_matrix(y_test, y_test_pred))
 
+print(accuracy_score(y_train, y_train_pred))  # on test set
+print(confusion_matrix(y_train, y_train_pred))
+mask = clf.predict(X_train_raw)!= y_train
+
+X_explain= X_train_raw[mask.values,:].copy()
 # %%
-from NICE.CF import NICE
+from NICE.explainers import NICE
 
 predict_fn = lambda x: clf.predict_proba(x)
 
 NICE_adult = NICE(optimization='sparsity')
 NICE_adult.fit(X_train_raw, y_train.values, predict_fn, feature_names=all_features, cat_feat=cat_feat,
-               con_feat=num_feat,distance_metric= 'HEOM',con_normalization='std')
+               num_feat=num_feat, distance_metric='HEOM', num_normalization='std')
 
 CF = []
-for idx in range(X_test_raw.shape[0]):#explain all instances from test set
-    CF.append(NICE_adult.explain(X_test_raw[idx:idx+1,:]))
+for idx in range(X_explain.shape[0]):#explain all instances from test set
+    CF.append(NICE_adult.explain(X_explain[idx:idx+1,:]))
     print('{} of {} explained'.format(idx + 1, X_test_raw.shape[0]), end='\r')
 
 CF = np.concatenate(CF)
-print(np.mean(clf.predict(X_test_raw[0:100,:])!=clf.predict(CF))) #1.0 = all valid CF
-print(np.mean(np.sum(X_test_raw[0:100,:]!=CF,axis=1)))#average sparsity = 2.3633
-print(pd.Series(np.sum(X_test_raw[0:100,:]!=CF,axis=0),index= all_features))#frequency of each feature in exp
+X_mod = X_train_raw.copy()#average sparsity = 2.3633
+X_mod[mask,:]=CF
+
+clf2 = Pipe.set_params(**best_params)
+clf2.fit(X_train_raw,y_train)
+
+y_test_pred = clf2.predict(X_test_raw)
+print(accuracy_score(y_test, y_test_pred))  # on test set
+print(confusion_matrix(y_test, y_test_pred),'b')
+
 
