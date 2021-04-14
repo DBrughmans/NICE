@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-from NICE.utils.distance import HEOM
-from NICE.utils.preprocessing import OHE_minmax
-from NICE.utils.AE import AE_model
+from nice.utils.distance import HEOM
+from nice.utils.preprocessing import OHE_minmax
+from nice.utils.AE import AE_model
 from math import ceil
 class NICE:
     def __init__(self,optimization:str = 'sparsity',justified_cf:bool = True):

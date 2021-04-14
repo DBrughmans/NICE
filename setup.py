@@ -1,9 +1,13 @@
 from setuptools import setup
 from setuptools import find_packages
+with open("readme.md","r") as fh:
+    long_description = fh.read()
 setup(
-    name='NICE',
+    name='NICEx',
     version = '0.0.1',
     description ='Nearest Instance Counterfactual explanations',
+    long_description = long_description,
+    long_description_content_type = "text/markdown",
     url ='https://github.com/DBrughmans/NICE',
     author ='Dieter Brughmans',
     author_email='dieter.brughmans@uantwerpen.be',
