@@ -5,32 +5,30 @@ from NICE.utils.preprocessing import OHE_minmax
 from NICE.utils.AE import AE_model
 from math import ceil
 class NICE:
-    def __init__(self,verbose = True,justified_cf = True,optimization = 'None'):
+    def __init__(self,justified_cf:bool = True,optimization:str = 'sparsity'):
+        if optimization not in ['none','sparsity','proximity','plausibility']:
+            msg = 'Invalid argument for optimization: "{}"'
+            raise ValueError(msg.format(optimization))
         self.optimization = optimization
-        self.verbose = verbose
         self.justified_cf = justified_cf
-        self.eps = 0.00001
-        #todo use weight 1 for cat_feat and integrate weights into calculation.
+        self.eps = 0.0000001
         #todo check if all inputs are correct. elevate error
     def fit(self,
+            predict_fn,
             X_train,
-            y_train,
-            predict_fn,#todo predict_fn should return a label not a prob
             cat_feat,
-            feature_names,#todo check if this can be deleted
-            con_feat = 'auto',
+            num_feat ='auto',
+            y_train=None,
             distance_metric='HEOM',
             con_normalization='minmax',
             weights = None):
 
         self.distance_metric = distance_metric
         self.X_train = X_train
-        self.y_train = y_train.astype(np.float64)#todo clean up what's supposed to be internal variable
         self.cat_feat = cat_feat
         self.predict_fn = predict_fn
-        self.con_feat = con_feat
+        self.num_feat = num_feat
         self.weights = weights
-        self.feature_names = feature_names
         self.con_normalization = con_normalization
         #todo raise error when wrong options are selected
         if self.optimization == 'plausibility':
@@ -38,17 +36,17 @@ class NICE:
         if self.weights == None:
             self.weights = np.ones(self.X_train.shape[1])
 
-        if self.con_feat == 'auto':
-            self.con_feat = [feat for feat in range(self.X_train.shape[1]) if feat not in self.cat_feat]
-        self.X_train[:,self.con_feat] = X_train[:,self.con_feat].astype(np.float64)
+        if self.num_feat == 'auto':
+            self.num_feat = [feat for feat in range(self.X_train.shape[1]) if feat not in self.cat_feat]
+        self.X_train[:,self.num_feat] = X_train[:, self.num_feat].astype(np.float64)
 
 
 
         if self.distance_metric == 'HEOM':
             if self.con_normalization == 'minmax':
-                self.con_scale = self.X_train[:, self.con_feat].max(axis=0) - self.X_train[:, self.con_feat].min(axis=0)
+                self.con_scale = self.X_train[:, self.num_feat].max(axis=0) - self.X_train[:, self.num_feat].min(axis=0)
             elif self.con_normalization == 'std':
-                self.con_scale = self.X_train[:, self.con_feat].std(axis=0,dtype=np.float64)
+                self.con_scale = self.X_train[:, self.num_feat].std(axis=0, dtype=np.float64)
             else:
                 msg = 'Invalid argument for con_normalization: "{}"'
                 raise ValueError(msg.format(self.con_normalization))
@@ -59,17 +57,16 @@ class NICE:
 
         self.X_train_class = np.argmax(self.predict_fn(self.X_train), axis=1)
         if self.justified_cf:
-            mask_justified = (self.X_train_class == self.y_train)
+            if y_train is None:
+                raise TypeError("fit() missing 1 required positional argument: 'y_train'")
+            mask_justified = (self.X_train_class == y_train)
             self.X_train = self.X_train[mask_justified, :]
-            self.y_train = self.y_train[mask_justified]
             self.X_train_class = self.X_train_class[mask_justified]
-            if self.distance_metric in ['ABDM','MVDM']:
-                self.X_train_discrete = self.X_train_discrete[mask_justified, :]
 
 
     def explain(self,X,target_class ='other'):#todo target class 'other'
         self.X = X
-        self.X[:, self.con_feat] = X[:, self.con_feat].astype(np.float64)
+        self.X[:, self.num_feat] = X[:, self.num_feat].astype(np.float64)
         self.X_class = np.argmax(self.predict_fn(self.X), axis=1)[0]
         self.target_class = target_class
         if target_class =='other':
@@ -89,9 +86,9 @@ class NICE:
 
 
         if self.distance_metric == 'HVDM':
-            distance = HVDM(self.X,X_candidates,self.cat_distance,self.con_distance,self.cat_feat,self.con_feat,normalization='N2' )#Todo make normalizatin conditional parameter for .fit method
+            distance = HVDM(self.X, X_candidates, self.cat_distance, self.con_distance, self.cat_feat, self.num_feat, normalization='N2')#Todo make normalizatin conditional parameter for .fit method
         elif self.distance_metric == 'HEOM':
-            distance = HEOM(self.X, X_candidates, self.cat_feat, self.con_feat, self.con_scale)
+            distance = HEOM(self.X, X_candidates, self.cat_feat, self.num_feat, self.con_scale)
         elif self.distance_metric in ['ABDM','MVDM']:
             distance = pw_to_distance(X_discrete, X_candidates_discrete, self.pw_distance)
 
@@ -116,53 +113,41 @@ class NICE:
         return cat_distance,con_distance
 
     def _optimize_sparsity(self,X,NN):
+        CF_candidate = X.copy()
         stop = False
         while stop == False:
-            diff = np.where(X!=NN)[1]
-            X_prune = np.tile(X, (len(diff), 1))
+            diff = np.where(CF_candidate!=NN)[1]
+            X_prune = np.tile(CF_candidate, (len(diff), 1))
             for r, c in enumerate(diff):
                 X_prune[r, c] = NN[0, c]
             score_prune = self.predict_fn(X_prune)
             score_diff = score_prune[:, self.target_class] - score_prune[:, self.X_class]
-            X = X_prune[np.argmax(score_diff), :][np.newaxis, :]
+            CF_candidate = X_prune[np.argmax(score_diff), :][np.newaxis, :]
             if score_diff.max() > 0:
-                NN = X
                 stop = True
-        return NN
+        return CF_candidate
 
     def _optimize_proximity(self,X,NN):
         CF_candidate = X.copy()
-        if self.distance_metric in ['ABDM', 'MVDM']:
-            X_discrete = self.disc.discretize(X)
         X_score = self.predict_fn(X)[:,self.X_class]
         while self.predict_fn(CF_candidate).argmax()==self.X_class:
-            diff = np.where(abs(CF_candidate - NN) > self.eps)[1]
+            diff = np.where(CF_candidate!=NN)[1]
             X_prune = np.tile(CF_candidate, (len(diff), 1))
             for r, c in enumerate(diff):
                 X_prune[r, c] = NN[0, c]
             score_prune = self.predict_fn(X_prune)
             score_diff = X_score - score_prune[:, self.X_class]
 
-            if self.distance_metric == 'HVDM':
-                distance = HVDM(X, X_prune, self.cat_distance, self.con_distance, self.cat_feat, self.con_feat,
-                                normalization='N2')  # Todo make normalizatin conditional parameter for .fit method
-                distance-= HVDM(X, CF_candidate, self.cat_distance, self.con_distance, self.cat_feat, self.con_feat,
-                                normalization='N2')
-            elif self.distance_metric == 'HEOM':
-                distance = HEOM(X, X_prune, self.cat_feat, self.con_feat, self.con_scale)
-                distance -= HEOM(X, CF_candidate, self.cat_feat, self.con_feat, self.con_scale)
-            elif self.distance_metric in ['ABDM', 'MVDM']:
-                CF_candidate_discrete = self.disc.discretize(CF_candidate)
-                X_prune_discrete = self.disc.discretize(X_prune)
-                distance = pw_to_distance(X_discrete, X_prune_discrete, self.pw_distance)
-                distance -= pw_to_distance(X_discrete, CF_candidate_discrete, self.pw_distance)
+            if self.distance_metric == 'HEOM':
+                distance = HEOM(X, X_prune, self.cat_feat, self.num_feat, self.con_scale)
+                distance -= HEOM(X, CF_candidate, self.cat_feat, self.num_feat, self.con_scale)
             idx_max = np.argmax(score_diff/(distance+self.eps))
             CF_candidate = X_prune[idx_max, :][np.newaxis, :]#select the instance that has the highest score diff per unit of distance
             X_score = score_prune[idx_max,self.X_class]
         return CF_candidate
 
     def _train_AE(self,X_train):
-        self.PP = OHE_minmax(cat_feat=self.cat_feat,con_feat=self.con_feat)
+        self.PP = OHE_minmax(cat_feat=self.cat_feat, con_feat=self.num_feat)
         self.PP.fit(X_train)
         self.AE = AE_model(self.PP.transform(X_train).shape[1],2)
         self.AE.fit(self.PP.transform(X_train),self.PP.transform(X_train),
@@ -172,7 +157,7 @@ class NICE:
         X_score = self.predict_fn(X)[:,self.X_class]
         CF_candidate = X.copy()
         while self.predict_fn(CF_candidate).argmax()==self.X_class:
-            diff = np.where(abs(CF_candidate - NN) > self.eps)[1]
+            diff = np.where(CF_candidate!=NN)[1]
             X_prune = np.tile(CF_candidate, (len(diff), 1))
             for r, c in enumerate(diff):
                 X_prune[r, c] = NN[0, c]
