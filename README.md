@@ -35,4 +35,4 @@ NICE_explainer.explain(x)
  [NICE on Adult](https://github.com/DBrughmans/NICE/blob/master/examples/NICE_adult.ipynb)
  
 ### References
-[NICE: NICE: An Algorithm for Nearest Instance Counterfactual Explanations](https://arxiv.org/abs/2104.07411)
+[NICE: An Algorithm for Nearest Instance Counterfactual Explanations](https://arxiv.org/abs/2104.07411)
