@@ -4,7 +4,7 @@ with open("readme.md","r") as fh:
     long_description = fh.read()
 setup(
     name='NICEx',
-    version = '0.1.0',
+    version = '0.1.1',
     description ='Nearest Instance Counterfactual explanations',
     long_description = long_description,
     long_description_content_type = "text/markdown",
