@@ -26,7 +26,7 @@ from nice.explainers import NICE
 # Initialize NICE by specifing the optimization strategy
 NICE_explainer = NICE(optimization='sparsity')
 # Fit our NICE explainer on the training data and classifier
-NICE_explainer.fit(predict_fn,X_train,cat_feat,num_feat,y_train)
+NICE_explainer.fit(predict_fn,X_train,cat_feat,num_feat,y_train,optimization='sparsity')
 # explain an instance
 NICE_explainer.explain(x)
 ```
