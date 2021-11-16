@@ -1,20 +1,17 @@
-import pandas as pd
-import numpy as np
 from nice.utils.distance import*
-from nice.utils.preprocessing import OHE_minmax
-from nice.utils.AE import AE_model
 from nice.utils.data import data_NICE,data_SEDC
-from nice.utils.optimization.heuristic import best_first
 from nice.utils.optimization.heuristic import *
-from math import ceil
+from typing import Optional
+import numpy as np
+
 # =============================================================================
 # Types and constants
 # =============================================================================
 CRITERIA_DIS = {'HEOM':HEOM}
-CRITERIA_NRM = {'std':std_scale,
-                'minmax':minmax_scale}
-CRITERIA_REW = {'sparsity':sparisity_reward,
-                'proximity':proximity_reward}
+CRITERIA_NRM = {'std':StandardDistance,
+                'minmax':MinMaxDistance}
+CRITERIA_REW = {'sparsity':SparsityReward,
+                'proximity':ProximityReward}
 
 
 class NICE:
@@ -22,44 +19,24 @@ class NICE:
         pass
     def fit(self,
             predict_fn,
-            X_train,
-            cat_feat,
+            X_train:np.ndarray,
+            cat_feat:list,
             num_feat ='auto',
-            y_train=None,
+            y_train: Optional[np.ndarray]=None,
             optimization='sparsity',
             justified_cf:bool = True,
-            distance_metric='HEOM',
-            num_normalization= 'minmax'):
+            distance_metric:str ='HEOM',
+            num_normalization:str = 'minmax'):
 
         self.data = data_NICE(X_train,y_train,cat_feat,num_feat,predict_fn,justified_cf,0.0000001)
         self.distance_metric = CRITERIA_DIS[distance_metric](self.data, CRITERIA_NRM[num_normalization])
-        self.optimization = best_first()
-        self.reward_function = CRITERIA_REW['sparsity'](self.data,self.distance_metric)
+        self.nearest_neighbour = NearestNeighbour(self.data, self.distance_metric)
+        self.reward_function = CRITERIA_REW[optimization](self.data,self.distance_metric)
+        self.optimization = best_first(self.data,self.reward_function)
 
 
     def explain(self,X,target_class ='other'):#todo target class 'other'
-        self.data.fit_to_X(X,target_class,self.distance_metric)
-        CF = self.optimization.optimize(self.data,self.reward_function)
-        return CF
-
-class SEDC:
-    def __init__(self):
-        pass
-
-    def fit(self,
-            predict_fn,
-            X_train,
-            cat_feat,
-            num_feat='auto'):
-        self.data = data_SEDC(X_train,predict_fn,cat_feat,num_feat)
-        self.data.fit()
-        self.optimization = best_first()
-        self.reward_function = sparisity_reward()
-
-    def explain(self,X,target_class):
         self.data.fit_to_X(X,target_class)
-        CF = self.optimization.optimize(self.data,self.reward_function)
+        NN = self.nearest_neighbour.find_neighbour(self.data.X)
+        CF = self.optimization.optimize(NN)
         return CF
-
-
-

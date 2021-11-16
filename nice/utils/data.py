@@ -30,11 +30,13 @@ class data_NICE:
             self.candidates_mask = np.ones(self.X_train.shape[0],dtype=bool)
 
 
-    def num_as_float(self,X):
+
+
+    def num_as_float(self,X:np.ndarray)->np.ndarray:
         X[:, self.num_feat] = X[:, self.num_feat].astype(np.float64)
         return X
 
-    def fit_to_X(self,X,target_class,distance_metric):
+    def fit_to_X(self,X,target_class):
         self.X = self.num_as_float(X)
         self.X_score = self.predict_fn(self.X)
         self.X_class =  self.X_score.argmax()
@@ -46,10 +48,6 @@ class data_NICE:
         self.mask = self.class_mask&self.candidates_mask
         self.candidates_view = self.X_train[self.mask,:].view()
 
-        distances = distance_metric.measure(self.X, self.candidates_view)
-        min_idx = distances.argmin()
-        self.replace_values = self.candidates_view[min_idx, :].copy()[np.newaxis, :]
-
 class data_SEDC:
     def __init__(self,X_train,predict_fn,cat_feat,num_feat):
         self.X_train =X_train
@@ -60,9 +58,6 @@ class data_SEDC:
         if self.num_feat == 'auto':
             self.num_feat = [feat for feat in range(self.X_train.shape[1]) if feat not in self.cat_feat]
         self.X_train = self.num_as_float(self.X_train)
-
-
-
 
     def num_as_float(self, X):
         X[:, self.num_feat] = X[:, self.num_feat].astype(np.float64)
