@@ -21,7 +21,7 @@ pip install git git+https://github.com/ADMantwerp/nice.git
 
 NICE requires acces to the prediction score and trainingdata to generate counterfactual explanations.
 ```python
-from nice.explainers import NICE
+from nice import NICE
 
 # Initialize NICE by specifing the optimization strategy
 NICE_explainer = NICE(optimization='sparsity')

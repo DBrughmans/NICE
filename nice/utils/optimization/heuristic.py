@@ -1,5 +1,5 @@
 from abc import ABC,abstractmethod
-from nice.utils.optimization.reward import *
+from nice.utils.optimization.reward import RewardFunction
 import numpy as np
 
 class optimization(ABC):
