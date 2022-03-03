@@ -30,15 +30,23 @@ class NICE:
             num_normalization:str = 'minmax',
             auto_encoder = None):
 
+        self.optimization = optimization
         self.data = data_NICE(X_train,y_train,cat_feat,num_feat,predict_fn,justified_cf,0.00000000001)
         self.distance_metric = CRITERIA_DIS[distance_metric](self.data, CRITERIA_NRM[num_normalization])
         self.nearest_neighbour = NearestNeighbour(self.data, self.distance_metric)
-        self.reward_function = CRITERIA_REW[optimization](self.data,distance_metric = self.distance_metric)
-        self.optimization = best_first(self.data,self.reward_function)
+        if optimization != 'none':
+            self.reward_function = CRITERIA_REW[optimization](
+                self.data,
+                distance_metric = self.distance_metric,
+                auto_encoder= auto_encoder
+            )
+            self.optimizer = best_first(self.data,self.reward_function)
 
 
     def explain(self,X,target_class ='other'):#todo target class 'other'
         self.data.fit_to_X(X,target_class)
         NN = self.nearest_neighbour.find_neighbour(self.data.X)
-        CF = self.optimization.optimize(NN)
-        return CF
+        if self.optimization != 'none':
+            CF = self.optimizer.optimize(NN)
+            return CF
+        return NN
