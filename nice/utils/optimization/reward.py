@@ -48,8 +48,8 @@ class PlausibilityReward(RewardFunction):
 
     def calculate_reward(self,X_prune,previous_CF_candidate):
         score_prune = self.data.predict_fn(X_prune)
-        score_diff = self.data.predict_fn(X_prune)[:, self.data.target_class_class]\
-                     - self.data.predict_fn(previous_CF_candidate[:, self.data.target_class])#target_class for multiclass
+        score_diff = self.data.predict_fn(X_prune)[:, self.data.target_class]\
+                     - self.data.predict_fn(previous_CF_candidate)[:, self.data.target_class]#target_class for multiclass
         AE_loss_diff = self.auto_encoder(previous_CF_candidate)-self.auto_encoder(X_prune)
         idx_max = np.argmax(score_diff * (AE_loss_diff)[:,np.newaxis])
         CF_candidate = X_prune[idx_max:idx_max+1, :]
