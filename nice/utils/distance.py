@@ -22,7 +22,7 @@ class StandardDistance(NumericDistance):
     def __init__(self,X_train:np.ndarray,num_feat:list,eps):
         self.num_feat = num_feat
         self.scale = X_train[:,num_feat].std(axis=0, dtype=np.float64)
-        self.scale[self.con_scale < eps] = eps
+        self.scale[self.scale < eps] = eps
     def measure(self,X1,X2):
         distance = X2[:,self.num_feat].copy()
         distance = abs(distance - X1[0, self.num_feat]) / self.scale
