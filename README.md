@@ -23,10 +23,15 @@ NICE requires acces to the prediction score and trainingdata to generate counter
 ```python
 from nice import NICE
 
-# Initialize NICE by specifing the optimization strategy
-NICE_explainer = NICE(optimization='sparsity')
-# Fit our NICE explainer on the training data and classifier
-NICE_explainer.fit(predict_fn,X_train,cat_feat,num_feat,y_train,optimization='sparsity')
+# Initialize NICE by specifing the optimization strategy and providing the training data and predictive model.
+NICE_explainer = NICE(
+    X_train=X_train,
+    predict_fn=predict_fn,
+    y_train=y_train,
+    cat_feat=cat_feat,
+    num_feat=num_feat
+)
+
 # explain an instance
 NICE_explainer.explain(x)
 ```
